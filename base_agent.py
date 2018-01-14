@@ -36,7 +36,7 @@ class BaseAgent(object):
 
     def reset(self):
         self.episodes += 1
-    
+
     def step(self, obs):
 
         self.steps += 1
