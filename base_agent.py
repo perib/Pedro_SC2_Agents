@@ -38,7 +38,6 @@ class BaseAgent(object):
         self.episodes += 1
 
     def step(self, obs):
-
         self.steps += 1
         self.reward += obs.reward
         return actions.FunctionCall(0, [])

@@ -5,6 +5,7 @@ from pysc2.lib import actions
 from pysc2.lib import features
 import random
 import time
+import dill
 
 _PLAYER_RELATIVE = features.SCREEN_FEATURES.player_relative.index
 _PLAYER_FRIENDLY = 1
@@ -39,6 +40,10 @@ class CollecteMinerals(base_agent.BaseAgent):
 
   def step(self, obs):
     super(CollecteMinerals, self).step(obs)
+
+    with open('obs.pkl','wb') as f:
+        dill.dump(obs,f)
+
     #print(features)
     #print(features.SCREEN_FEATURES)
 
@@ -49,6 +54,7 @@ class CollecteMinerals(base_agent.BaseAgent):
         unit_type = obs.observation['screen'][_UNIT_TYPE]
         unit_y, unit_x = (unit_type == _TERRAN_MARINE).nonzero()
         if unit_y.any():
+            print(len(unit_y))
             i = random.randint(0, len(unit_y) - 1)
             target = [unit_x[i], unit_y[i]]
             self.selected = target
