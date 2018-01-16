@@ -7,6 +7,7 @@ import random
 import time
 import dill
 import tensorflow
+import math
 
 from pr_neuralnets import *
 
@@ -46,7 +47,13 @@ _W = 6
 _NW = 7
 _Stay = 8
 
-Commands = [_N,_NE,_E,_SE,_E,_S,_SW,_W,_NW]#_Stay]
+_Cheat = 9
+
+Commands = [_N,_NE,_SE,_E,_S,_SW,_W,_NW,_Cheat]#_Stay]
+
+#Commands = [_N,_E,_S,_W,_Cheat]
+
+
 
 class MovetoBeaconQ(base_agent.BaseAgent):
     """An agent specifically for solving the MoveToBeacon map."""
@@ -55,7 +62,7 @@ class MovetoBeaconQ(base_agent.BaseAgent):
         self.selected =[0,0]
         self.gamma = 0.999
         self.nets = genSimpleFC(intput_length=5, output_length=1)
-        self.nets = TrainQLearning(self.nets, output_length=1, learning_rate=0.1)
+        self.nets = TrainQLearning(self.nets, output_length=1, learning_rate=0.001)
 
         init_op = tf.global_variables_initializer()
         self.sess = tf.Session()
@@ -67,8 +74,8 @@ class MovetoBeaconQ(base_agent.BaseAgent):
 
         self.startE = 1  # Starting chance of random action
         self.endE = 0.01 #.1  # Final chance of random action
-        self.anneling_steps = 1500  # How many steps of training to reduce startE to endE.
-        self.pre_train_steps = 10000  # How many steps of random actions before training begins.
+        self.anneling_steps = 500  # How many steps of training to reduce startE to endE.
+        self.pre_train_steps = 500  # How many steps of random actions before training begins.
         self.stepDrop = (self.startE - self.endE) / self.anneling_steps #updated every episode
         self.preStepcount = 0  # keeps track of steps needed before training
         self.e = self.startE
@@ -77,6 +84,8 @@ class MovetoBeaconQ(base_agent.BaseAgent):
         self.prev_marine_y = None
 
         self.episode_step = 0
+
+        self.prev_distance = float('inf')
 
     def prediction(self,marine_x,marine_y,beacon_x,beacon_y,action):
         pred_reward = self.sess.run(
@@ -109,28 +118,52 @@ class MovetoBeaconQ(base_agent.BaseAgent):
 
 
 
-    def get_action(self,action,marine_x,marine_y):
+    def get_action(self,action,marine_x,marine_y,beacon_x, beacon_y):
         if marine_x == None or marine_y == None:
             return actions.FunctionCall(_NO_OP, [])
-        stepsize = 3
+        stepsize = 10
+
+        if stepsize + marine_x > 83:
+            up = 83
+        else:
+            up = stepsize + marine_x
+
+        if stepsize + marine_y > 83:
+            right = 83
+        else:
+            right = stepsize + marine_y
+
+        if -stepsize + marine_y < 0:
+            left = 0
+        else:
+            left = -stepsize + marine_y
+
+        if -stepsize + marine_x < 0:
+            down = 0
+        else:
+            down = -stepsize + marine_x
+
         if action == _N:
-            return actions.FunctionCall(_MOVE_SCREEN, [_NOT_QUEUED, [marine_x+stepsize,marine_y] ])
+            return actions.FunctionCall(_MOVE_SCREEN, [_NOT_QUEUED, [up,marine_y] ])
         if action == _NE:
-            return actions.FunctionCall(_MOVE_SCREEN, [_NOT_QUEUED, [marine_x+stepsize,marine_y+stepsize] ])
+            return actions.FunctionCall(_MOVE_SCREEN, [_NOT_QUEUED, [up,right] ])
         if action == _E:
-            return actions.FunctionCall(_MOVE_SCREEN, [_NOT_QUEUED, [marine_x,marine_y+stepsize] ])
+            return actions.FunctionCall(_MOVE_SCREEN, [_NOT_QUEUED, [marine_x,right] ])
         if action == _SE:
-            return actions.FunctionCall(_MOVE_SCREEN, [_NOT_QUEUED, [marine_x-stepsize,marine_y+stepsize] ])
+            return actions.FunctionCall(_MOVE_SCREEN, [_NOT_QUEUED, [down,right] ])
         if action == _S:
-            return actions.FunctionCall(_MOVE_SCREEN, [_NOT_QUEUED, [marine_x-stepsize,marine_y] ])
+            return actions.FunctionCall(_MOVE_SCREEN, [_NOT_QUEUED, [down,marine_y] ])
         if action == _SW:
-            return actions.FunctionCall(_MOVE_SCREEN, [_NOT_QUEUED, [marine_x-stepsize,marine_y-stepsize] ])
+            return actions.FunctionCall(_MOVE_SCREEN, [_NOT_QUEUED, [down,left] ])
         if action == _W:
-            return actions.FunctionCall(_MOVE_SCREEN, [_NOT_QUEUED, [marine_x,marine_y-stepsize] ])
+            return actions.FunctionCall(_MOVE_SCREEN, [_NOT_QUEUED, [marine_x,left] ])
         if action == _NW:
-            return actions.FunctionCall(_MOVE_SCREEN, [_NOT_QUEUED, [marine_x+stepsize,marine_y-stepsize] ])
+            return actions.FunctionCall(_MOVE_SCREEN, [_NOT_QUEUED, [up,left] ])
         if action == _Stay:
             return actions.FunctionCall(_NO_OP, [])
+
+        if action == _Cheat:
+            return actions.FunctionCall(_MOVE_SCREEN, [_NOT_QUEUED, [beacon_x, beacon_y]])
 
         print("nooope")
         return actions.FunctionCall(_NO_OP, [])
@@ -211,11 +244,17 @@ class MovetoBeaconQ(base_agent.BaseAgent):
                 marine_x = self.prev_marine_x #if in a beacon you cant see your thing
                 marine_y = self.prev_marine_y
             else:
+
                 marine_x = friendly_x.mean()
                 marine_y = friendly_y.mean()
+                self.prev_marine_x = marine_x
+                self.prev_marine_y = marine_y
+
 
             beacon_x = neutral_x.mean()
             beacon_y = neutral_y.mean()
+
+            dist = math.sqrt((beacon_x-marine_x)**2 + (beacon_y-marine_y)**2)
 
             #get action
             if np.random.rand(1) < self.e or self.preStepcount < self.pre_train_steps:
@@ -223,15 +262,23 @@ class MovetoBeaconQ(base_agent.BaseAgent):
                 pred_action, pred_reward = self.prediction(marine_x, marine_y, beacon_x, beacon_y, action)
                 self.preStepcount = self.preStepcount + 1
             else:
+
                 pred_action, pred_reward = self.predict_action(marine_x,marine_y,beacon_x,beacon_y)
 
 
 
             if self.prev_action != None:
+                print(pred_action)
                 if obs.reward > 0:
-                    self.train_network(obs.reward, "terminal", 0)
+                    self.train_network(obs.reward+100, "terminal", 0)
                 else:
-                    self.train_network(0, "not terminal", pred_reward)
+                    if self.prev_distance > dist:
+                        reward  = 0
+                    else:
+                        reward = 0
+                    self.prev_distance = dist
+
+                    self.train_network(reward, "not terminal", pred_reward)
 
                 #self.train_network(0, "not terminal", pred_reward)
                 #if not obs.last():
@@ -243,7 +290,7 @@ class MovetoBeaconQ(base_agent.BaseAgent):
             self.prev_state = [[marine_x,marine_y,beacon_x,beacon_y,pred_action]]
 
             #print(pred_action)
-            return self.get_action(pred_action, marine_x,marine_y)
+            return self.get_action(pred_action, marine_x,marine_y,beacon_x, beacon_y)
 
 
 
