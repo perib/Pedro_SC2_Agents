@@ -62,7 +62,7 @@ class MovetoBeaconQ(base_agent.BaseAgent):
         super(MovetoBeaconQ, self).__init__()
         self.selected =[0,0]
         self.gamma = 0.999
-        self.nets = genSimpleFC(intput_length=5, output_length=1)
+        self.nets = genSimpleFC2(intput_length=5, output_length=1)
         self.nets = TrainQLearning(self.nets, output_length=1, learning_rate=0.001)
 
         init_op = tf.global_variables_initializer()
