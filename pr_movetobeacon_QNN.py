@@ -53,6 +53,7 @@ Commands = [_N,_NE,_SE,_E,_S,_SW,_W,_NW,_Cheat]#_Stay]
 
 #Commands = [_N,_E,_S,_W,_Cheat]
 
+Commands = [_N,_E,_S,_W]
 
 
 class MovetoBeaconQ(base_agent.BaseAgent):
@@ -121,7 +122,7 @@ class MovetoBeaconQ(base_agent.BaseAgent):
     def get_action(self,action,marine_x,marine_y,beacon_x, beacon_y):
         if marine_x == None or marine_y == None:
             return actions.FunctionCall(_NO_OP, [])
-        stepsize = 10
+        stepsize = 20
 
         if stepsize + marine_x > 83:
             up = 83
@@ -165,7 +166,6 @@ class MovetoBeaconQ(base_agent.BaseAgent):
         if action == _Cheat:
             return actions.FunctionCall(_MOVE_SCREEN, [_NOT_QUEUED, [beacon_x, beacon_y]])
 
-        print("nooope")
         return actions.FunctionCall(_NO_OP, [])
 
     def train_network(self,reward,current_state,pred_reward):
@@ -268,7 +268,6 @@ class MovetoBeaconQ(base_agent.BaseAgent):
 
 
             if self.prev_action != None:
-                print(pred_action)
                 if obs.reward > 0:
                     self.train_network(obs.reward+100, "terminal", 0)
                 else:
