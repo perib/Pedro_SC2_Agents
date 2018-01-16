@@ -8,6 +8,7 @@ import time
 import dill
 import tensorflow
 import math
+import copy
 
 from pr_neuralnets import *
 
@@ -49,11 +50,34 @@ _Stay = 8
 
 _Cheat = 9
 
-Commands = [_N,_NE,_SE,_E,_S,_SW,_W,_NW,_Cheat]#_Stay]
+#Commands = [_N,_NE,_SE,_E,_S,_SW,_W,_NW,_Cheat]#_Stay]
 
 #Commands = [_N,_E,_S,_W,_Cheat]
 
-Commands = [_N,_E,_S,_W]
+#Commands = [_N,_E,_S,_W]
+
+Commands = [_N,_NE,_SE,_E,_S,_SW,_W,_NW]
+
+# [Observations1, action, reward, observations2, terminal]
+#stores the new memories and replaces old ones
+class experience_buffer():
+
+    def __init__(self, buffer_size = 1000):
+        self.buffer = [] #stores objects in an arrray of length buffer_size
+        self.buffer_size = buffer_size #max size of array
+        self.current = 0 #current index to be replaced
+
+    def add(self, experience):
+        if len(self.buffer)  >= self.buffer_size: #if the buffer is full
+            if(self.current == self.buffer_size-1): #if we are at the end of the list, replace the first item
+                self.current = 0
+            self.buffer[self.current] = experience #replace item
+            self.current += 1 #set to replace the following number
+        else:
+            self.buffer.append(experience) #if not full, just add new item
+
+    def sample(self, size): #randomly sample size number of instances
+        return random.sample(self.buffer, size)
 
 
 class MovetoBeaconQ(base_agent.BaseAgent):
@@ -63,7 +87,7 @@ class MovetoBeaconQ(base_agent.BaseAgent):
         self.selected =[0,0]
         self.gamma = 0.9
         self.nets = genSimpleFC2(intput_length=5, output_length=1)
-        self.nets = TrainQLearning(self.nets, output_length=1, learning_rate=0.0001)
+        self.nets = TrainQLearning(self.nets, output_length=1, learning_rate=0.1)
 
         init_op = tf.global_variables_initializer()
         self.sess = tf.Session()
@@ -76,7 +100,7 @@ class MovetoBeaconQ(base_agent.BaseAgent):
         self.startE = 1  # Starting chance of random action
         self.endE = 0.01 #.1  # Final chance of random action
         self.anneling_steps = 500  # How many steps of training to reduce startE to endE.
-        self.pre_train_steps = 500  # How many steps of random actions before training begins.
+        self.pre_train_steps = 750  # How many steps of random actions before training begins.
         self.stepDrop = (self.startE - self.endE) / self.anneling_steps #updated every episode
         self.preStepcount = 0  # keeps track of steps needed before training
         self.e = self.startE
@@ -88,11 +112,20 @@ class MovetoBeaconQ(base_agent.BaseAgent):
 
         self.prev_distance = float('inf')
 
+
+        self.batchsize = 40
+        self.buffersize = 5000
+
+        self.update_freq = 250
+
+        self.buffer = experience_buffer(self.buffersize)
+
     def prediction(self,marine_x,marine_y,beacon_x,beacon_y,action):
         pred_reward = self.sess.run(
             [self.nets['predicted_reward']],
             feed_dict={self.nets['input_to_net']: [[marine_x, marine_y, beacon_x, beacon_y, action]],
                        self.nets['keep_prob']: 1})
+
         return action, pred_reward[0][0][0]
 
     def predict_action(self,marine_x,marine_y,beacon_x,beacon_y):
@@ -168,6 +201,36 @@ class MovetoBeaconQ(base_agent.BaseAgent):
 
         return actions.FunctionCall(_NO_OP, [])
 
+    #self.buffer.add([copy.deepcopy(self.prev_state), copy.deepcopy(self.prev_action), obs.reward + 100, "terminal", 0])
+
+    def train_on_batch(self):
+        memories = self.buffer.sample(self.batchsize)
+
+        for memory in memories:
+            prevstate = memory[0]
+            prevaction = memory[1]
+            reward = memory[2]
+            current_state = memory[3]
+            predreward = memory[4]
+
+            prevstate_action = prevstate
+
+
+            if current_state == 'terminal':
+                target = [[reward]] #+ self.gamma * pred_reward
+                train = self.sess.run(
+                    [self.nets['train_step']],
+                    feed_dict={self.nets['input_to_net']: prevstate_action,
+                               self.nets['target']: target, self.nets['keep_prob']: 1})
+            else:
+                target = [[reward + self.gamma * predreward]]
+                #print(type(target))
+                train = self.sess.run(
+                    [self.nets['train_step']],
+                    feed_dict={self.nets['input_to_net']: prevstate_action,
+                               self.nets['target']: target, self.nets['keep_prob']: 1})
+
+
     def train_network(self,reward,current_state,pred_reward):
         if current_state == 'terminal':
             target = [[reward]] #+ self.gamma * pred_reward
@@ -194,6 +257,10 @@ class MovetoBeaconQ(base_agent.BaseAgent):
 
         if self.episode_step == 0:
             print("total episodes %d, won %d, percent %f" %(self.episodes,self.reward, (self.reward/self.episodes) ))
+
+        if (self.steps % self.update_freq == 0 and len(self.buffer.buffer) > self.batchsize):
+            self.train_on_batch()
+
 
         self.episode_step += 1
         #print(features)
@@ -265,11 +332,14 @@ class MovetoBeaconQ(base_agent.BaseAgent):
 
                 pred_action, pred_reward = self.predict_action(marine_x,marine_y,beacon_x,beacon_y)
 
-
+            pred_action = int(pred_action)
 
             if self.prev_action != None:
                 if obs.reward > 0:
-                    self.train_network(obs.reward+100, "terminal", 0)
+
+                    self.buffer.add([copy.deepcopy(self.prev_state),copy.deepcopy(self.prev_action),obs.reward+100,"terminal",0])
+
+                  #  self.train_network(obs.reward+100, "terminal", 0)
                 else:
                     if self.prev_distance > dist:
                         reward  = 0
@@ -277,7 +347,11 @@ class MovetoBeaconQ(base_agent.BaseAgent):
                         reward = 0
                     self.prev_distance = dist
 
-                    self.train_network(reward, "not terminal", pred_reward)
+                    self.buffer.add(
+                        [copy.deepcopy(self.prev_state), copy.deepcopy(self.prev_action), reward, "not terminal",
+                         pred_reward])
+
+                  #  self.train_network(reward, "not terminal", pred_reward)
 
                 #self.train_network(0, "not terminal", pred_reward)
                 #if not obs.last():
