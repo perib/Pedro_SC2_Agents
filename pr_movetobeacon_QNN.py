@@ -9,7 +9,7 @@ import dill
 import tensorflow
 import math
 import copy
-
+import tensorflow as tf
 from pr_neuralnets import *
 
 _PLAYER_RELATIVE = features.SCREEN_FEATURES.player_relative.index
@@ -120,6 +120,11 @@ class MovetoBeaconQ(base_agent.BaseAgent):
 
         self.buffer = experience_buffer(self.buffersize)
 
+
+        tensorboard_folder = "./tbfolder"
+        merged = tf.summary.merge_all()
+        tb_writer = tf.summary.FileWriter(tensorboard_folder, self.sess.graph)
+
     def prediction(self,marine_x,marine_y,beacon_x,beacon_y,action):
         pred_reward = self.sess.run(
             [self.nets['predicted_reward']],
@@ -155,7 +160,7 @@ class MovetoBeaconQ(base_agent.BaseAgent):
     def get_action(self,action,marine_x,marine_y,beacon_x, beacon_y):
         if marine_x == None or marine_y == None:
             return actions.FunctionCall(_NO_OP, [])
-        stepsize = 20
+        stepsize = 5
 
         if stepsize + marine_x > 83:
             up = 83
@@ -225,11 +230,12 @@ class MovetoBeaconQ(base_agent.BaseAgent):
             else:
                 target = [[reward + self.gamma * predreward]]
                 #print(type(target))
-                train = self.sess.run(
-                    [self.nets['train_step']],
+                train,loss = self.sess.run(
+                    [self.nets['train_step'],self.nets['loss']],
                     feed_dict={self.nets['input_to_net']: prevstate_action,
                                self.nets['target']: target, self.nets['keep_prob']: 1})
 
+                #print(loss)
 
     def train_network(self,reward,current_state,pred_reward):
         if current_state == 'terminal':
@@ -337,14 +343,14 @@ class MovetoBeaconQ(base_agent.BaseAgent):
             if self.prev_action != None:
                 if obs.reward > 0:
 
-                    self.buffer.add([copy.deepcopy(self.prev_state),copy.deepcopy(self.prev_action),obs.reward+100,"terminal",0])
+                    self.buffer.add([copy.deepcopy(self.prev_state),copy.deepcopy(self.prev_action),obs.reward+1000,"terminal",0])
 
                   #  self.train_network(obs.reward+100, "terminal", 0)
                 else:
                     if self.prev_distance > dist:
-                        reward  = 0
+                        reward  = 100
                     else:
-                        reward = 0
+                        reward = -100
                     self.prev_distance = dist
 
                     self.buffer.add(

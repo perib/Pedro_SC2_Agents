@@ -60,8 +60,8 @@ def TrainQLearning(nets,output_length,learning_rate):
         beta2 = 0.999
         epsilon = 1e-08
         nets['global_step'] = tf.Variable(0, name='global_step', trainable=False)
-        nets['train_step'] = tf.train.AdamOptimizer(learning_rate).minimize(nets["loss"],global_step=nets['global_step'])
-
+        #nets['train_step'] = tf.train.GradientDescentOptimizer(learning_rate).minimize(nets["loss"],global_step=nets['global_step'])
+        nets['train_step'] = tf.train.AdamOptimizer(learning_rate).minimize(nets["loss"],  global_step=nets['global_step'])
 
     with tf.name_scope("Reward_Summary"):
         nets['Reward'] = tf.placeholder(tf.float32, (), name='Reward')
