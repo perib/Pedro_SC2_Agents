@@ -87,7 +87,7 @@ class MovetoBeaconQ(base_agent.BaseAgent):
         self.selected =[0,0]
         self.gamma = 0.9
         self.nets = genSimpleFC2(intput_length=5, output_length=1)
-        self.nets = TrainQLearning(self.nets, output_length=1, learning_rate=0.1)
+        self.nets = TrainQLearning(self.nets, output_length=1, learning_rate=0.0000001)
 
         init_op = tf.global_variables_initializer()
         self.sess = tf.Session()
@@ -98,9 +98,9 @@ class MovetoBeaconQ(base_agent.BaseAgent):
 
 
         self.startE = 1  # Starting chance of random action
-        self.endE = 0.01 #.1  # Final chance of random action
-        self.anneling_steps = 500  # How many steps of training to reduce startE to endE.
-        self.pre_train_steps = 750  # How many steps of random actions before training begins.
+        self.endE = 0.001 #.1  # Final chance of random action
+        self.anneling_steps = 2500  # How many steps of training to reduce startE to endE.
+        self.pre_train_steps = 7000  # How many steps of random actions before training begins.
         self.stepDrop = (self.startE - self.endE) / self.anneling_steps #updated every episode
         self.preStepcount = 0  # keeps track of steps needed before training
         self.e = self.startE
@@ -113,10 +113,10 @@ class MovetoBeaconQ(base_agent.BaseAgent):
         self.prev_distance = float('inf')
 
 
-        self.batchsize = 40
-        self.buffersize = 5000
+        self.batchsize = 50
+        self.buffersize = 7000
 
-        self.update_freq = 250
+        self.update_freq = 350
 
         self.buffer = experience_buffer(self.buffersize)
 
