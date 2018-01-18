@@ -87,7 +87,7 @@ class MovetoBeaconQ(base_agent.BaseAgent):
         self.selected =[0,0]
         self.gamma = 0.9
         self.nets = genSimpleFC2(intput_length=5, output_length=1)
-        self.nets = TrainQLearning(self.nets, output_length=1, learning_rate=0.0000001)
+        self.nets = TrainQLearning(self.nets, output_length=1, learning_rate=0.00001)
 
         init_op = tf.global_variables_initializer()
         self.sess = tf.Session()
@@ -98,9 +98,9 @@ class MovetoBeaconQ(base_agent.BaseAgent):
 
 
         self.startE = 1  # Starting chance of random action
-        self.endE = 0.001 #.1  # Final chance of random action
-        self.anneling_steps = 2500  # How many steps of training to reduce startE to endE.
-        self.pre_train_steps = 7000  # How many steps of random actions before training begins.
+        self.endE = 0.1 #.1  # Final chance of random action
+        self.anneling_steps = 3000  # How many steps of training to reduce startE to endE.
+        self.pre_train_steps = 6000  # How many steps of random actions before training begins.
         self.stepDrop = (self.startE - self.endE) / self.anneling_steps #updated every episode
         self.preStepcount = 0  # keeps track of steps needed before training
         self.e = self.startE
@@ -113,8 +113,8 @@ class MovetoBeaconQ(base_agent.BaseAgent):
         self.prev_distance = float('inf')
 
 
-        self.batchsize = 50
-        self.buffersize = 7000
+        self.batchsize = 30
+        self.buffersize = 3000
 
         self.update_freq = 350
 
@@ -226,14 +226,14 @@ class MovetoBeaconQ(base_agent.BaseAgent):
                 train = self.sess.run(
                     [self.nets['train_step']],
                     feed_dict={self.nets['input_to_net']: prevstate_action,
-                               self.nets['target']: target, self.nets['keep_prob']: 1})
+                               self.nets['target']: target, self.nets['keep_prob']: .5})
             else:
                 target = [[reward + self.gamma * predreward]]
                 #print(type(target))
                 train,loss = self.sess.run(
                     [self.nets['train_step'],self.nets['loss']],
                     feed_dict={self.nets['input_to_net']: prevstate_action,
-                               self.nets['target']: target, self.nets['keep_prob']: 1})
+                               self.nets['target']: target, self.nets['keep_prob']: .5})
 
                 #print(loss)
 
@@ -348,9 +348,9 @@ class MovetoBeaconQ(base_agent.BaseAgent):
                   #  self.train_network(obs.reward+100, "terminal", 0)
                 else:
                     if self.prev_distance > dist:
-                        reward  = 100
+                        reward  =  0
                     else:
-                        reward = -100
+                        reward = 0
                     self.prev_distance = dist
 
                     self.buffer.add(
