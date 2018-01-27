@@ -74,7 +74,7 @@ class QLearningTable:
 
         self.endepsilon = 0.1
 
-        self.anneling_steps = 7000
+        self.anneling_steps = 40000
         self.stepDrop = (self.epsilon - self.endepsilon) / self.anneling_steps #updated every episode
 
         self.nets = genSimpleFC2(intput_length=9, output_length=1)
