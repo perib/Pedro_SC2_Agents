@@ -54,9 +54,10 @@ _Cheat = 9
 
 #Commands = [_N,_E,_S,_W,_Cheat]
 
-#Commands = [_N,_E,_S,_W]
+Commands = [_N,_E,_S,_W]
+Commands = [_W,_S,_E,_N]
 
-Commands = [_N,_NE,_SE,_E,_S,_SW,_W,_NW]
+#Commands = [_N,_NE,_SE,_E,_S,_SW,_W,_NW]
 
 # [Observations1, action, reward, observations2, terminal]
 #stores the new memories and replaces old ones
@@ -85,9 +86,9 @@ class MovetoBeaconQ(base_agent.BaseAgent):
     def __init__(self):
         super(MovetoBeaconQ, self).__init__()
         self.selected =[0,0]
-        self.gamma = 0.9
+        self.gamma = 0.99
         self.nets = genSimpleFC2(intput_length=5, output_length=1)
-        self.nets = TrainQLearning(self.nets, output_length=1, learning_rate=0.00001)
+        self.nets = TrainQLearning(self.nets, output_length=1, learning_rate=.001)
 
         init_op = tf.global_variables_initializer()
         self.sess = tf.Session()
@@ -96,11 +97,15 @@ class MovetoBeaconQ(base_agent.BaseAgent):
         self.prev_state = None
         self.prev_action = None
 
+        self.endGamma = .99
+        self.gammaStepscount = 1000
+        self.gammaSteps = (self.gamma-self.endGamma)/self.gammaStepscount
+
 
         self.startE = 1  # Starting chance of random action
         self.endE = 0.1 #.1  # Final chance of random action
-        self.anneling_steps = 3000  # How many steps of training to reduce startE to endE.
-        self.pre_train_steps = 6000  # How many steps of random actions before training begins.
+        self.anneling_steps = 500  # How many steps of training to reduce startE to endE.
+        self.pre_train_steps = 10000  # How many steps of random actions before training begins.
         self.stepDrop = (self.startE - self.endE) / self.anneling_steps #updated every episode
         self.preStepcount = 0  # keeps track of steps needed before training
         self.e = self.startE
@@ -113,10 +118,10 @@ class MovetoBeaconQ(base_agent.BaseAgent):
         self.prev_distance = float('inf')
 
 
-        self.batchsize = 30
-        self.buffersize = 3000
+        self.batchsize = 32
+        self.buffersize = 5000
 
-        self.update_freq = 350
+        self.update_freq = 250
 
         self.buffer = experience_buffer(self.buffersize)
 
@@ -133,9 +138,23 @@ class MovetoBeaconQ(base_agent.BaseAgent):
 
         return action, pred_reward[0][0][0]
 
+
+    def softmax(self,arr):
+        sumed = sum(arr)
+        e = random.uniform(0,sumed)
+        count = 0
+        for c in range(0,len(arr)):
+            if arr[c] +count >= e:
+                return c
+            count = count + arr[c]
+        return -1
+
     def predict_action(self,marine_x,marine_y,beacon_x,beacon_y):
         bestaction = 0
         bestreward = float('-inf')
+
+        weigths = []
+
         for action in Commands:
             #print(action)
 
@@ -146,12 +165,18 @@ class MovetoBeaconQ(base_agent.BaseAgent):
             #
             # print(pred_reward)
 
+            weigths.append(pred_reward[0][0][0])
+
             #print(pred_reward)
             if pred_reward[0][0][0] > bestreward:
                 bestreward = pred_reward[0][0][0]
                 bestaction = action
                 #self.prev_state = [[marine_x, marine_y, beacon_x, beacon_y, action]]
 
+        #softmax
+        besti = self.softmax(weigths)
+        bestaction = Commands[besti]
+        bestreward = weigths[besti]
 
         return bestaction, bestreward
 
@@ -160,7 +185,7 @@ class MovetoBeaconQ(base_agent.BaseAgent):
     def get_action(self,action,marine_x,marine_y,beacon_x, beacon_y):
         if marine_x == None or marine_y == None:
             return actions.FunctionCall(_NO_OP, [])
-        stepsize = 5
+        stepsize = 8
 
         if stepsize + marine_x > 83:
             up = 83
@@ -222,18 +247,19 @@ class MovetoBeaconQ(base_agent.BaseAgent):
 
 
             if current_state == 'terminal':
+
                 target = [[reward]] #+ self.gamma * pred_reward
                 train = self.sess.run(
                     [self.nets['train_step']],
                     feed_dict={self.nets['input_to_net']: prevstate_action,
-                               self.nets['target']: target, self.nets['keep_prob']: .5})
+                               self.nets['target']: target, self.nets['keep_prob']: 1})
             else:
                 target = [[reward + self.gamma * predreward]]
                 #print(type(target))
                 train,loss = self.sess.run(
                     [self.nets['train_step'],self.nets['loss']],
                     feed_dict={self.nets['input_to_net']: prevstate_action,
-                               self.nets['target']: target, self.nets['keep_prob']: .5})
+                               self.nets['target']: target, self.nets['keep_prob']: 1})
 
                 #print(loss)
 
@@ -265,6 +291,9 @@ class MovetoBeaconQ(base_agent.BaseAgent):
             print("total episodes %d, won %d, percent %f" %(self.episodes,self.reward, (self.reward/self.episodes) ))
 
         if (self.steps % self.update_freq == 0 and len(self.buffer.buffer) > self.batchsize):
+            if self.gamma < self.endGamma:
+                self.gamma = self.gamma + self.gammaSteps
+
             self.train_on_batch()
 
 
@@ -340,10 +369,12 @@ class MovetoBeaconQ(base_agent.BaseAgent):
 
             pred_action = int(pred_action)
 
+
             if self.prev_action != None:
                 if obs.reward > 0:
 
-                    self.buffer.add([copy.deepcopy(self.prev_state),copy.deepcopy(self.prev_action),obs.reward+1000,"terminal",0])
+                    for i in range(0,50):
+                        self.buffer.add([copy.deepcopy(self.prev_state),copy.deepcopy(self.prev_action),obs.reward+10,"terminal",0])
 
                   #  self.train_network(obs.reward+100, "terminal", 0)
                 else:

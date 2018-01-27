@@ -9,19 +9,19 @@ def genSimpleFC2(intput_length,output_length):
         nets['keep_prob'] = tf.placeholder(tf.float32)
 
     with tf.name_scope('fc_1'):
-        W_fc1 = weight_variable([intput_length, 1024])
-        b_fc1 = bias_variable([1024])
+        W_fc1 = weight_variable([intput_length, 256])
+        b_fc1 = bias_variable([256])
         nets['fc_1'] = tf.nn.relu(tf.matmul(nets['input_to_net'], W_fc1) + b_fc1)
         nets['h_fc1_drop'] = tf.nn.dropout(nets['fc_1'], nets['keep_prob'])
 
     with tf.name_scope('fc_2'):
-        W_fc2 = weight_variable([1024, 1024])
-        b_fc2 = bias_variable([1024])
+        W_fc2 = weight_variable([256, 128])
+        b_fc2 = bias_variable([128])
         nets['fc_2'] = tf.nn.relu(tf.matmul(nets['h_fc1_drop'], W_fc2) + b_fc2)
         nets['h_fc2_drop'] = tf.nn.dropout(nets['fc_2'], nets['keep_prob'])
 
     with tf.name_scope('fc_3'):
-        W_fc3 = weight_variable([1024, output_length])
+        W_fc3 = weight_variable([128, output_length])
         b_fc3 = bias_variable([output_length])
         nets['predicted_reward'] = tf.matmul(nets['h_fc2_drop'], W_fc3) + b_fc3
 
