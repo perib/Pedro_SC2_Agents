@@ -69,12 +69,12 @@ class QLearningTable:
         self.actions = actions  # a list
         self.lr = learning_rate
         self.gamma = reward_decay
-        self.epsilon = 1.1#e_greedy
+        self.epsilon = 0.9#e_greedy
         self.q_table = pd.DataFrame(columns=self.actions, dtype=np.float64)
 
         self.endepsilon = 0.1
 
-        self.anneling_steps = 5000
+        self.anneling_steps = 7000
         self.stepDrop = (self.epsilon - self.endepsilon) / self.anneling_steps #updated every episode
 
         self.nets = genSimpleFC2(intput_length=9, output_length=1)
