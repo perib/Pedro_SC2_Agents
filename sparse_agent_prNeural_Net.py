@@ -65,7 +65,7 @@ for mm_x in range(0, 64):
 
 # Stolen from https://github.com/MorvanZhou/Reinforcement-learning-with-tensorflow
 class QLearningTable:
-    def __init__(self, actions, learning_rate=0.0001, reward_decay=0.9, e_greedy=0.9):
+    def __init__(self, actions, learning_rate=0.001, reward_decay=0.9, e_greedy=0.9):
         self.actions = actions  # a list
         self.lr = learning_rate
         self.gamma = reward_decay
@@ -74,7 +74,7 @@ class QLearningTable:
 
         self.endepsilon = 0.1
 
-        self.anneling_steps = 40000
+        self.anneling_steps = 200000
         self.stepDrop = (self.epsilon - self.endepsilon) / self.anneling_steps #updated every episode
 
         self.nets = genSimpleFC2(intput_length=9, output_length=1)
